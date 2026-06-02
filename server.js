@@ -94,18 +94,18 @@ app.get("/track", async (req, res) => {
     const message = `
 🇵🇭 New Visitor Logged
 
-🕒 Time: ${timestamp}
+Time: ${timestamp}
 
-🌍 IP: ${ip}
-📦 Forwarded IP: ${forwardedIp}
-🧠 Socket IP: ${socketIp}
+IP: ${ip}
+Forwarded IP: ${forwardedIp}
+Socket IP: ${socketIp}
 
-📶 Type: ${ipType}
+Type: ${ipType}
 
-📍 Location: ${city}, ${region}, ${country}
-🏢 Org: ${org}
+Location: ${city}, ${region}, ${country}
+Org: ${org}
 
-🖥️ Device: ${userAgent}
+Device: ${userAgent}
 `;
 
     // =========================

